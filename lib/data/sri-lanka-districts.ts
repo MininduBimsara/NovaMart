@@ -1,0 +1,33 @@
+export const sriLankaDistricts = [
+  "Ampara",
+  "Anuradhapura",
+  "Badulla",
+  "Batticaloa",
+  "Colombo",
+  "Galle",
+  "Gampaha",
+  "Hambantota",
+  "Jaffna",
+  "Kalutara",
+  "Kandy",
+  "Kegalle",
+  "Kilinochchi",
+  "Kurunegala",
+  "Mannar",
+  "Matale",
+  "Matara",
+  "Monaragala",
+  "Mullaitivu",
+  "Nuwara Eliya",
+  "Polonnaruwa",
+  "Puttalam",
+  "Ratnapura",
+  "Trincomalee",
+  "Vavuniya",
+]
+
+export const deliveryTimes = [
+  { value: "10:00", label: "10:00 AM" },
+  { value: "11:00", label: "11:00 AM" },
+  { value: "12:00", label: "12:00 PM" },
+]

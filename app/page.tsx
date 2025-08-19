@@ -1,0 +1,53 @@
+"use client"
+
+import { useDualAuth } from "@/lib/auth/dual-auth-provider"
+import { useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { DualAuthForms } from "@/components/dual-auth-forms"
+import { Loader } from "@/components/ui/loader"
+
+export default function HomePage() {
+  const { state } = useDualAuth()
+  const { isAuthenticated, isLoading } = state
+  const router = useRouter()
+
+  useEffect(() => {
+    // Only redirect if user explicitly wants to go to products
+    // Remove automatic redirect to let users stay on homepage if they want
+  }, [])
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader />
+      </div>
+    )
+  }
+
+  if (isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
+        <div className="max-w-md w-full text-center space-y-6">
+          <h1 className="text-3xl font-bold text-gray-900">Welcome!</h1>
+          <p className="text-gray-600">You are successfully authenticated.</p>
+          <div className="space-y-3">
+            <button
+              onClick={() => router.push("/products")}
+              className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors"
+            >
+              Browse Products
+            </button>
+            <button
+              onClick={() => router.push("/orders")}
+              className="w-full bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-700 transition-colors"
+            >
+              View Orders
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return <DualAuthForms />
+}
