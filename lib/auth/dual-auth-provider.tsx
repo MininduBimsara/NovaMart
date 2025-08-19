@@ -77,27 +77,29 @@ function AsgardeoAuthWrapper({ children }: { children: React.ReactNode }) {
     localStorage.removeItem("demoUser")
   }, [])
 
+  const isAsgardeoAvailable = asgardeoAuth !== null
+
   const signIn = useCallback(
     async (email?: string, password?: string) => {
       if (authMode === "demo" && email && password) {
         await demoSignIn(email, password)
-      } else if (authMode === "asgardeo") {
+      } else if (authMode === "asgardeo" && isAsgardeoAvailable) {
         await asgardeoAuth.signIn()
       }
     },
-    [authMode, demoSignIn, asgardeoAuth],
+    [authMode, demoSignIn, asgardeoAuth, isAsgardeoAvailable],
   )
 
   const signOut = useCallback(async () => {
     if (authMode === "demo") {
       await demoSignOut()
-    } else if (authMode === "asgardeo") {
+    } else if (authMode === "asgardeo" && isAsgardeoAvailable) {
       await asgardeoAuth.signOut()
     }
-  }, [authMode, demoSignOut, asgardeoAuth])
+  }, [authMode, demoSignOut, asgardeoAuth, isAsgardeoAvailable])
 
   const getAccessToken = useCallback(async (): Promise<string | null> => {
-    if (authMode === "asgardeo") {
+    if (authMode === "asgardeo" && isAsgardeoAvailable) {
       try {
         return await asgardeoAuth.getAccessToken()
       } catch {
@@ -105,7 +107,7 @@ function AsgardeoAuthWrapper({ children }: { children: React.ReactNode }) {
       }
     }
     return null // Demo mode doesn't use real tokens
-  }, [authMode, asgardeoAuth])
+  }, [authMode, asgardeoAuth, isAsgardeoAvailable])
 
   const switchAuthMode = useCallback(
     (mode: AuthMode) => {
@@ -113,24 +115,26 @@ function AsgardeoAuthWrapper({ children }: { children: React.ReactNode }) {
       // Clear current auth state when switching
       if (mode === "asgardeo") {
         demoSignOut()
-      } else {
+      } else if (isAsgardeoAvailable) {
         asgardeoAuth.signOut()
       }
     },
-    [demoSignOut, asgardeoAuth],
+    [demoSignOut, asgardeoAuth, isAsgardeoAvailable],
   )
 
   const state = useMemo(
     (): DualAuthState => ({
       authMode,
-      isAuthenticated: authMode === "demo" ? !!demoUser : !!asgardeoAuth.state?.isAuthenticated,
-      isLoading: authMode === "demo" ? demoLoading : !!asgardeoAuth.state?.isLoading,
+      isAuthenticated:
+        authMode === "demo" ? !!demoUser : !!(isAsgardeoAvailable && asgardeoAuth?.state?.isAuthenticated),
+      isLoading: authMode === "demo" ? demoLoading : !!(isAsgardeoAvailable && asgardeoAuth?.state?.isLoading),
       user: authMode === "demo" ? demoUser : null,
-      username: authMode === "asgardeo" ? asgardeoAuth.state?.username : demoUser?.email,
-      displayName: authMode === "asgardeo" ? asgardeoAuth.state?.displayName : demoUser?.displayName,
-      email: authMode === "asgardeo" ? asgardeoAuth.state?.email : demoUser?.email,
+      username: authMode === "asgardeo" && isAsgardeoAvailable ? asgardeoAuth?.state?.username : demoUser?.email,
+      displayName:
+        authMode === "asgardeo" && isAsgardeoAvailable ? asgardeoAuth?.state?.displayName : demoUser?.displayName,
+      email: authMode === "asgardeo" && isAsgardeoAvailable ? asgardeoAuth?.state?.email : demoUser?.email,
     }),
-    [authMode, demoUser, demoLoading, asgardeoAuth.state],
+    [authMode, demoUser, demoLoading, asgardeoAuth, isAsgardeoAvailable],
   )
 
   const contextValue = useMemo(
