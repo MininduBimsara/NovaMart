@@ -1,17 +1,18 @@
 {
-  "name": "my-v0-project",
-  "version": "0.1.0",
+  "name": "novamart-ecommerce-frontend",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "build": "next build",
     "dev": "next dev",
     "lint": "next lint",
-    "start": "next start"
+    "start": "next start",
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@asgardeo/auth-react": "latest",
+    "@asgardeo/auth-react": "^6.0.18",
     "@babel/runtime-corejs3": "latest",
-    "@hookform/resolvers": "latest",
+    "@hookform/resolvers": "^3.3.4",
     "@radix-ui/react-accordion": "1.2.2",
     "@radix-ui/react-alert-dialog": "1.1.4",
     "@radix-ui/react-aspect-ratio": "1.1.1",
@@ -43,8 +44,9 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "1.0.4",
-    "date-fns": "latest",
+    "date-fns": "^3.6.0",
     "embla-carousel-react": "8.5.1",
+    "framer-motion": "^11.0.0",
     "geist": "latest",
     "immer": "latest",
     "input-otp": "1.4.1",
@@ -52,9 +54,9 @@
     "next": "^14.2.32",
     "next-themes": "latest",
     "react": "^18",
-    "react-day-picker": "latest",
+    "react-day-picker": "^8.10.1",
     "react-dom": "^18",
-    "react-hook-form": "latest",
+    "react-hook-form": "^7.51.5",
     "react-resizable-panels": "^2.1.7",
     "recharts": "2.15.0",
     "sonner": "^1.7.1",
@@ -63,7 +65,7 @@
     "use-sync-external-store": "latest",
     "vaul": "^0.9.6",
     "zod": "^3.24.1",
-    "zustand": "latest"
+    "zustand": "^4.5.2"
   },
   "devDependencies": {
     "@types/node": "^22",

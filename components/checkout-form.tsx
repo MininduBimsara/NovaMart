@@ -30,8 +30,8 @@ import {
   sriLankaDistricts,
   deliveryTimes,
 } from "@/lib/data/sri-lanka-districts";
-import { CartService } from "@/lib/services/cart-service";
 import { OrdersService } from "@/lib/services/orders-service";
+import { CartService } from "@/lib/services/cart-service";
 import { ApiClient } from "@/lib/services/api-client";
 import { AuthService } from "@/lib/services/auth-service";
 import { useAuthContext } from "@/lib/auth/dual-auth-provider";
@@ -113,13 +113,14 @@ export function CheckoutForm() {
         createdOrder.id
       );
 
-      // Clear cart after successful order
+      // Clear frontend cart
       clearCart();
 
-      // Also clear backend cart
+      // Clear backend cart
       try {
         const cartService = new CartService(apiClient);
         await cartService.clearCart();
+        console.log("[CheckoutForm] Backend cart cleared");
       } catch (error) {
         console.warn("[CheckoutForm] Failed to clear backend cart:", error);
       }
@@ -133,30 +134,14 @@ export function CheckoutForm() {
     } catch (error) {
       console.error("Checkout error:", error);
 
-      // Fallback: create a mock order and continue
-      try {
-        const mockOrderId = `ORDER-${Date.now()}`;
-        console.log(
-          "[CheckoutForm] Backend failed, using mock order:",
-          mockOrderId
-        );
-
-        clearCart();
-
-        toast({
-          title: "Order Placed Successfully!",
-          description: `Your order ${mockOrderId} has been confirmed. (Demo mode)`,
-        });
-
-        router.push(`/orders?orderId=${mockOrderId}`);
-      } catch (fallbackError) {
-        toast({
-          title: "Checkout Failed",
-          description:
-            "There was an error processing your order. Please try again.",
-          variant: "destructive",
-        });
-      }
+      toast({
+        title: "Checkout Failed",
+        description:
+          error instanceof Error
+            ? error.message
+            : "There was an error processing your order. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsSubmitting(false);
     }

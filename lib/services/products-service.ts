@@ -48,16 +48,8 @@ export class ProductsService {
       return backendProducts.map(this.convertToProduct);
     } catch (error) {
       console.error("Failed to fetch products from backend:", error);
-      console.log("[ProductsService] Falling back to mock data");
-
-      // Return filtered mock data as fallback
-      let mockProducts = this.getMockProducts();
-
-      if (filters) {
-        mockProducts = this.filterMockProducts(mockProducts, filters);
-      }
-
-      return mockProducts;
+      // Return empty array instead of mock data
+      return [];
     }
   }
 
@@ -69,10 +61,7 @@ export class ProductsService {
       return this.convertToProduct(backendProduct);
     } catch (error) {
       console.error("Failed to fetch product from backend:", error);
-
-      // Fallback to mock data
-      const mockProducts = this.getMockProducts();
-      return mockProducts.find((p) => p.id === id) || null;
+      return null;
     }
   }
 
@@ -135,7 +124,7 @@ export class ProductsService {
       price: dto.price,
       stock: dto.availableQuantity,
       category: dto.category,
-      image: this.getProductImage(dto.name), // Generate placeholder image based on name
+      image: this.getProductImage(dto.name),
     };
   }
 
@@ -160,99 +149,5 @@ export class ProductsService {
         productName
       )}`;
     }
-  }
-
-  private filterMockProducts(
-    products: Product[],
-    filters: ProductFilters
-  ): Product[] {
-    return products.filter((product) => {
-      if (
-        filters.category &&
-        filters.category !== "All categories" &&
-        product.category !== filters.category
-      ) {
-        return false;
-      }
-
-      if (filters.minPrice && product.price < filters.minPrice) {
-        return false;
-      }
-
-      if (filters.maxPrice && product.price > filters.maxPrice) {
-        return false;
-      }
-
-      if (
-        filters.search &&
-        !product.name.toLowerCase().includes(filters.search.toLowerCase()) &&
-        !product.description
-          .toLowerCase()
-          .includes(filters.search.toLowerCase())
-      ) {
-        return false;
-      }
-
-      return true;
-    });
-  }
-
-  private getMockProducts(): Product[] {
-    return [
-      {
-        id: "1",
-        name: "Wireless Headphones",
-        description: "High-quality wireless headphones with noise cancellation",
-        price: 199.99,
-        stock: 15,
-        category: "Electronics",
-        image: "/wireless-headphones.png",
-      },
-      {
-        id: "2",
-        name: "Smart Watch",
-        description: "Feature-rich smartwatch with health tracking",
-        price: 299.99,
-        stock: 8,
-        category: "Electronics",
-        image: "/smartwatch-lifestyle.png",
-      },
-      {
-        id: "3",
-        name: "Coffee Maker",
-        description: "Premium coffee maker for the perfect brew",
-        price: 149.99,
-        stock: 12,
-        category: "Home & Kitchen",
-        image: "/modern-coffee-maker.png",
-      },
-      {
-        id: "4",
-        name: "Running Shoes",
-        description: "Comfortable running shoes for all terrains",
-        price: 89.99,
-        stock: 25,
-        category: "Sports",
-        image: "/running-shoes-on-track.png",
-      },
-      {
-        id: "5",
-        name: "Laptop Backpack",
-        description: "Durable laptop backpack with multiple compartments",
-        price: 59.99,
-        stock: 0,
-        category: "Accessories",
-        image: "/laptop-backpack.png",
-      },
-      {
-        id: "6",
-        name: "Bluetooth Speaker",
-        description: "Portable Bluetooth speaker with excellent sound quality",
-        price: 79.99,
-        stock: 18,
-        category: "Electronics",
-        image: "/bluetooth-speaker.png",
-      },
-    ];
   }
 }

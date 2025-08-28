@@ -19,7 +19,6 @@ export class AuthService {
 
   async login() {
     try {
-      // Check if it's an Asgardeo context with signIn method
       if ("signIn" in this.authContext) {
         await this.authContext.signIn();
       }
@@ -31,7 +30,6 @@ export class AuthService {
 
   async logout() {
     try {
-      // Check if it's an Asgardeo context with signOut method
       if ("signOut" in this.authContext) {
         await this.authContext.signOut();
       }
@@ -43,12 +41,11 @@ export class AuthService {
 
   async getAccessToken(): Promise<string | null> {
     try {
-      // Check if it's an Asgardeo context with getAccessToken method
       if ("getAccessToken" in this.authContext) {
         return await this.authContext.getAccessToken();
       }
 
-      // For demo mode, return a mock token
+      // For demo mode, check if user is authenticated
       if (this.isAuthenticated()) {
         return "demo-token-" + Date.now();
       }
@@ -68,7 +65,6 @@ export class AuthService {
           username: state.username || state.email,
           name: state.displayName || state.user?.name || "",
           email: state.email || state.user?.email || "",
-          // Additional claims can be extracted from ID token
         }
       : null;
   }
@@ -86,7 +82,6 @@ export class AuthService {
     return this.authContext.state.isLoading;
   }
 
-  // Helper method to get user ID for API calls
   getUserId(): string {
     const profile = this.getUserProfile();
     return profile?.username || "current-user";

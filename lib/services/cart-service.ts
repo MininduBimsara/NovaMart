@@ -41,7 +41,6 @@ export class CartService {
       console.log("[CartService] Received cart:", cartDTO);
 
       // Convert backend cart to frontend format
-      // Note: Backend cart only has productId and quantity, we need to fetch product details
       const cartItems: CartItem[] = [];
 
       for (const item of cartDTO.items) {
@@ -59,6 +58,7 @@ export class CartService {
           });
         } catch (error) {
           console.error(`Failed to fetch product ${item.productId}:`, error);
+          // Skip items that can't be loaded instead of creating placeholder
         }
       }
 
@@ -151,7 +151,7 @@ export class CartService {
       console.log("[CartService] Cart synced successfully");
     } catch (error) {
       console.error("Failed to sync cart:", error);
-      // Don't throw error for sync failures in development
+      // Don't throw error for sync failures to avoid disrupting user experience
     }
   }
 
@@ -184,16 +184,7 @@ export class CartService {
       };
     } catch (error) {
       console.error("Checkout failed:", error);
-
-      // Return mock response for development
-      const mockOrderId = `ORDER-${Date.now()}`;
-      console.log("[CartService] Using mock checkout response:", mockOrderId);
-
-      return {
-        orderId: mockOrderId,
-        status: "success",
-        message: "Order placed successfully! (Development mode)",
-      };
+      throw new Error("Failed to process checkout. Please try again.");
     }
   }
 
