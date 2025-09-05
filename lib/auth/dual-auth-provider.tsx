@@ -11,6 +11,7 @@ import {
 } from "react";
 import { AuthProvider as AsgardeoAuthProvider } from "@asgardeo/auth-react";
 import { useAuthContext as useAsgardeoAuth } from "@asgardeo/auth-react";
+import { useRouter } from "next/navigation";
 
 type AuthMode = "asgardeo" | "demo";
 
@@ -61,47 +62,91 @@ const DEMO_USERS = [
 
 function AsgardeoAuthWrapper({ children }: { children: React.ReactNode }) {
   const asgardeoAuth = useAsgardeoAuth();
+  const router = useRouter();
   const [authMode, setAuthMode] = useState<AuthMode>("demo"); // Default to demo
   const [demoUser, setDemoUser] = useState<DemoUser | null>(null);
   const [demoLoading, setDemoLoading] = useState(false);
+  const [hasRedirected, setHasRedirected] = useState(false);
 
   // Check for stored demo user on mount
   useEffect(() => {
     const storedUser = localStorage.getItem("demoUser");
-    if (storedUser && authMode === "demo") {
+    const storedAuthMode = localStorage.getItem("authMode") as AuthMode;
+
+    if (storedAuthMode) {
+      setAuthMode(storedAuthMode);
+    }
+
+    if (storedUser && (storedAuthMode === "demo" || authMode === "demo")) {
       setDemoUser(JSON.parse(storedUser));
     }
   }, [authMode]);
 
-  const demoSignIn = useCallback(async (email: string, password: string) => {
-    setDemoLoading(true);
-
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
-    const user = DEMO_USERS.find(
-      (u) => u.email === email && u.password === password
-    );
-    if (!user) {
-      setDemoLoading(false);
-      throw new Error("Invalid credentials");
+  // Handle Asgardeo authentication state changes and redirect
+  useEffect(() => {
+    if (
+      authMode === "asgardeo" &&
+      asgardeoAuth?.state?.isAuthenticated &&
+      !asgardeoAuth?.state?.isLoading &&
+      !hasRedirected
+    ) {
+      console.log(
+        "[DualAuth] Asgardeo authentication successful, redirecting to products"
+      );
+      setHasRedirected(true);
+      router.push("/products");
     }
+  }, [
+    asgardeoAuth?.state?.isAuthenticated,
+    asgardeoAuth?.state?.isLoading,
+    authMode,
+    hasRedirected,
+    router,
+  ]);
 
-    const demoUser = {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      displayName: user.displayName,
-    };
-    setDemoUser(demoUser);
-    localStorage.setItem("demoUser", JSON.stringify(demoUser));
-    setDemoLoading(false);
-  }, []);
+  // Reset redirect flag when auth state changes
+  useEffect(() => {
+    if (!asgardeoAuth?.state?.isAuthenticated) {
+      setHasRedirected(false);
+    }
+  }, [asgardeoAuth?.state?.isAuthenticated]);
+
+  const demoSignIn = useCallback(
+    async (email: string, password: string) => {
+      setDemoLoading(true);
+
+      // Simulate API call
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      const user = DEMO_USERS.find(
+        (u) => u.email === email && u.password === password
+      );
+      if (!user) {
+        setDemoLoading(false);
+        throw new Error("Invalid credentials");
+      }
+
+      const demoUser = {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        displayName: user.displayName,
+      };
+      setDemoUser(demoUser);
+      localStorage.setItem("demoUser", JSON.stringify(demoUser));
+      setDemoLoading(false);
+
+      // Redirect after demo login
+      router.push("/products");
+    },
+    [router]
+  );
 
   const demoSignOut = useCallback(async () => {
     setDemoUser(null);
     localStorage.removeItem("demoUser");
-  }, []);
+    router.push("/");
+  }, [router]);
 
   const isAsgardeoAvailable =
     !!process.env.NEXT_PUBLIC_ASGARDEO_CLIENT_ID &&
@@ -116,7 +161,13 @@ function AsgardeoAuthWrapper({ children }: { children: React.ReactNode }) {
         isAsgardeoAvailable &&
         asgardeoAuth
       ) {
-        await asgardeoAuth.signIn();
+        try {
+          console.log("[DualAuth] Initiating Asgardeo sign in");
+          await asgardeoAuth.signIn();
+        } catch (error) {
+          console.error("[DualAuth] Asgardeo sign in failed:", error);
+          throw error;
+        }
       } else if (authMode === "asgardeo" && !isAsgardeoAvailable) {
         throw new Error(
           "Asgardeo is not configured. Please check your environment variables."
@@ -127,12 +178,24 @@ function AsgardeoAuthWrapper({ children }: { children: React.ReactNode }) {
   );
 
   const signOut = useCallback(async () => {
-    if (authMode === "demo") {
-      await demoSignOut();
-    } else if (authMode === "asgardeo" && isAsgardeoAvailable && asgardeoAuth) {
-      await asgardeoAuth.signOut();
+    try {
+      if (authMode === "demo") {
+        await demoSignOut();
+      } else if (
+        authMode === "asgardeo" &&
+        isAsgardeoAvailable &&
+        asgardeoAuth
+      ) {
+        console.log("[DualAuth] Initiating Asgardeo sign out");
+        setHasRedirected(false);
+        await asgardeoAuth.signOut();
+      }
+    } catch (error) {
+      console.error("[DualAuth] Sign out failed:", error);
+      // Still redirect to home even if signOut fails
+      router.push("/");
     }
-  }, [authMode, demoSignOut, asgardeoAuth, isAsgardeoAvailable]);
+  }, [authMode, demoSignOut, asgardeoAuth, isAsgardeoAvailable, router]);
 
   const getAccessToken = useCallback(async (): Promise<string | null> => {
     if (
@@ -157,16 +220,26 @@ function AsgardeoAuthWrapper({ children }: { children: React.ReactNode }) {
   }, [authMode, asgardeoAuth, isAsgardeoAvailable, demoUser]);
 
   const switchAuthMode = useCallback(
-    (mode: AuthMode) => {
+    async (mode: AuthMode) => {
+      console.log("[DualAuth] Switching auth mode to:", mode);
+
       // Clear current auth state when switching
       if (authMode === "demo") {
-        demoSignOut();
+        setDemoUser(null);
+        localStorage.removeItem("demoUser");
       } else if (isAsgardeoAvailable && asgardeoAuth?.state?.isAuthenticated) {
-        asgardeoAuth.signOut();
+        try {
+          await asgardeoAuth.signOut();
+        } catch (error) {
+          console.error("Failed to sign out from Asgardeo:", error);
+        }
       }
+
+      setHasRedirected(false);
       setAuthMode(mode);
+      localStorage.setItem("authMode", mode);
     },
-    [authMode, demoSignOut, asgardeoAuth, isAsgardeoAvailable]
+    [authMode, asgardeoAuth, isAsgardeoAvailable]
   );
 
   const state = useMemo(
@@ -217,8 +290,12 @@ function AsgardeoAuthWrapper({ children }: { children: React.ReactNode }) {
 
 export function DualAuthProvider({ children }: { children: React.ReactNode }) {
   const asgardeoConfig = {
-    signInRedirectURL: "http://localhost:3000",
-    signOutRedirectURL: "http://localhost:3000",
+    signInRedirectURL:
+      process.env.NEXT_PUBLIC_ASGARDEO_SIGN_IN_REDIRECT_URL ||
+      "http://localhost:3000",
+    signOutRedirectURL:
+      process.env.NEXT_PUBLIC_ASGARDEO_SIGN_OUT_REDIRECT_URL ||
+      "http://localhost:3000",
     clientID: process.env.NEXT_PUBLIC_ASGARDEO_CLIENT_ID || "",
     baseUrl: process.env.NEXT_PUBLIC_ASGARDEO_BASE_URL || "",
     scope: ["openid", "profile", "email"],

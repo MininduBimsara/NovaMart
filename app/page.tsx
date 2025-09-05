@@ -8,41 +8,48 @@ import { Loader } from "@/components/ui/loader";
 
 export default function HomePage() {
   const { state } = useDualAuth();
-  const { isAuthenticated, isLoading } = state;
+  const { isAuthenticated, isLoading, authMode } = state;
   const router = useRouter();
 
+  // Handle redirect when authenticated
+  useEffect(() => {
+    if (isAuthenticated && !isLoading) {
+      console.log("[HomePage] User is authenticated, redirecting to products");
+      router.push("/products");
+    }
+  }, [isAuthenticated, isLoading, router]);
+
+  // Show loading while checking auth state
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <Loader />
+        <div className="text-center">
+          <Loader />
+          <p className="mt-4 text-muted-foreground">
+            {authMode === "asgardeo"
+              ? "Checking authentication..."
+              : "Loading..."}
+          </p>
+        </div>
       </div>
     );
   }
 
+  // Show authenticated state briefly before redirect
   if (isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
         <div className="max-w-md w-full text-center space-y-6">
-          <h1 className="text-3xl font-bold text-gray-900">Welcome!</h1>
-          <p className="text-gray-600">You are successfully authenticated.</p>
-          <div className="space-y-3">
-            <button
-              onClick={() => router.push("/products")}
-              className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors"
-            >
-              Browse Products
-            </button>
-            <button
-              onClick={() => router.push("/orders")}
-              className="w-full bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-700 transition-colors"
-            >
-              View Orders
-            </button>
+          <div className="text-center">
+            <Loader />
+            <h1 className="mt-4 text-3xl font-bold text-gray-900">Welcome!</h1>
+            <p className="mt-2 text-gray-600">Redirecting you to products...</p>
           </div>
         </div>
       </div>
     );
   }
 
+  // Show auth forms if not authenticated
   return <SimpleAuthForms />;
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useDualAuth } from "@/lib/auth/dual-auth-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,8 +12,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
+import { Loader } from "@/components/ui/loader";
 
 export function SimpleAuthForms() {
   const { state, signIn, switchAuthMode } = useDualAuth();
@@ -21,9 +21,20 @@ export function SimpleAuthForms() {
   const { toast } = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [isSigningIn, setIsSigningIn] = useState(false);
 
   const handleDemoSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!email || !password) {
+      toast({
+        title: "Error",
+        description: "Please enter both email and password",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSigningIn(true);
     try {
       await signIn(email, password);
       toast({
@@ -37,13 +48,18 @@ export function SimpleAuthForms() {
           error instanceof Error ? error.message : "Failed to sign in",
         variant: "destructive",
       });
+    } finally {
+      setIsSigningIn(false);
     }
   };
 
   const handleAsgardeoSignIn = async () => {
+    setIsSigningIn(true);
     try {
       await signIn();
+      // Don't show success toast here as Asgardeo will redirect
     } catch (error) {
+      setIsSigningIn(false);
       toast({
         title: "Error",
         description: "Failed to sign in with Asgardeo",
@@ -61,6 +77,22 @@ export function SimpleAuthForms() {
     process.env.NEXT_PUBLIC_ASGARDEO_CLIENT_ID &&
     process.env.NEXT_PUBLIC_ASGARDEO_BASE_URL
   );
+
+  // Show loading if we're in the middle of authentication
+  if (isLoading || isSigningIn) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
+        <div className="text-center">
+          <Loader />
+          <p className="mt-4 text-muted-foreground">
+            {authMode === "asgardeo" && isSigningIn
+              ? "Redirecting to Asgardeo..."
+              : "Signing in..."}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
@@ -84,6 +116,7 @@ export function SimpleAuthForms() {
               variant={authMode === "demo" ? "default" : "outline"}
               className="w-full"
               onClick={() => switchAuthMode("demo")}
+              disabled={isSigningIn}
             >
               Demo Mode
             </Button>
@@ -91,7 +124,7 @@ export function SimpleAuthForms() {
               variant={authMode === "asgardeo" ? "default" : "outline"}
               className="w-full"
               onClick={() => switchAuthMode("asgardeo")}
-              disabled={!isAsgardeoConfigured}
+              disabled={!isAsgardeoConfigured || isSigningIn}
             >
               Asgardeo OIDC {!isAsgardeoConfigured && "(Not Configured)"}
             </Button>
@@ -115,6 +148,7 @@ export function SimpleAuthForms() {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    disabled={isSigningIn}
                     required
                   />
                 </div>
@@ -125,17 +159,26 @@ export function SimpleAuthForms() {
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    disabled={isSigningIn}
                     required
                   />
                 </div>
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? "Signing in..." : "Sign In"}
+                <Button type="submit" className="w-full" disabled={isSigningIn}>
+                  {isSigningIn ? (
+                    <>
+                      <Loader />
+                      <span className="ml-2">Signing in...</span>
+                    </>
+                  ) : (
+                    "Sign In"
+                  )}
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
                   className="w-full"
                   onClick={useDemoAccount}
+                  disabled={isSigningIn}
                 >
                   Use Demo Account
                 </Button>
@@ -164,10 +207,29 @@ export function SimpleAuthForms() {
               <Button
                 onClick={handleAsgardeoSignIn}
                 className="w-full"
-                disabled={isLoading}
+                disabled={isSigningIn}
               >
-                {isLoading ? "Signing in..." : "Sign in with Asgardeo"}
+                {isSigningIn ? (
+                  <>
+                    <Loader />
+                    <span className="ml-2">Redirecting...</span>
+                  </>
+                ) : (
+                  "Sign in with Asgardeo"
+                )}
               </Button>
+
+              {!isAsgardeoConfigured && (
+                <div className="mt-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                  <p className="text-sm text-yellow-800">
+                    <strong>Configuration Required:</strong> Please set up your
+                    environment variables:
+                    <br />
+                    • NEXT_PUBLIC_ASGARDEO_CLIENT_ID
+                    <br />• NEXT_PUBLIC_ASGARDEO_BASE_URL
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}

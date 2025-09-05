@@ -1,4 +1,4 @@
-// lib/services/products-service.ts
+// lib/services/products-service.ts - FIXED VERSION
 import type { Product, ProductFilters } from "@/lib/types/product";
 import type { ApiClient } from "./api-client";
 
@@ -44,8 +44,8 @@ export class ProductsService {
         backendProducts.length
       );
 
-      // Convert backend DTOs to frontend Product interface
-      return backendProducts.map(this.convertToProduct);
+      // FIX: Use arrow function to preserve 'this' context
+      return backendProducts.map((dto) => this.convertToProduct(dto));
     } catch (error) {
       console.error("Failed to fetch products from backend:", error);
       // Return empty array instead of mock data
