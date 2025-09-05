@@ -1,27 +1,22 @@
-"use client"
+"use client";
 
-import { useDualAuth } from "@/lib/auth/dual-auth-provider"
-import { useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { DualAuthForms } from "@/components/dual-auth-forms"
-import { Loader } from "@/components/ui/loader"
+import { useDualAuth } from "@/lib/auth/dual-auth-provider";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { SimpleAuthForms } from "@/components/simple-auth-forms";
+import { Loader } from "@/components/ui/loader";
 
 export default function HomePage() {
-  const { state } = useDualAuth()
-  const { isAuthenticated, isLoading } = state
-  const router = useRouter()
-
-  useEffect(() => {
-    // Only redirect if user explicitly wants to go to products
-    // Remove automatic redirect to let users stay on homepage if they want
-  }, [])
+  const { state } = useDualAuth();
+  const { isAuthenticated, isLoading } = state;
+  const router = useRouter();
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader />
       </div>
-    )
+    );
   }
 
   if (isAuthenticated) {
@@ -46,8 +41,8 @@ export default function HomePage() {
           </div>
         </div>
       </div>
-    )
+    );
   }
 
-  return <DualAuthForms />
+  return <SimpleAuthForms />;
 }

@@ -7,6 +7,7 @@ export class ApiClient {
   private authService: AuthService;
 
   constructor(baseURL: string, authService: AuthService) {
+    // Ensure consistent base URL handling
     this.baseURL = baseURL.replace(/\/+$/, ""); // Remove trailing slashes
     this.authService = authService;
   }
@@ -68,7 +69,7 @@ export class ApiClient {
     const response = await fetch(url, {
       method: "GET",
       headers: await this.getHeaders(),
-      credentials: "include", // Important for CORS
+      credentials: "include",
     });
 
     return this.handleResponse<T>(response);

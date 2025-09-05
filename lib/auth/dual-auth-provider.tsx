@@ -1,4 +1,3 @@
-// lib/auth/dual-auth-provider.tsx
 "use client";
 
 import type React from "react";
@@ -62,7 +61,7 @@ const DEMO_USERS = [
 
 function AsgardeoAuthWrapper({ children }: { children: React.ReactNode }) {
   const asgardeoAuth = useAsgardeoAuth();
-  const [authMode, setAuthMode] = useState<AuthMode>("asgardeo"); // Default to Asgardeo
+  const [authMode, setAuthMode] = useState<AuthMode>("demo"); // Default to demo
   const [demoUser, setDemoUser] = useState<DemoUser | null>(null);
   const [demoLoading, setDemoLoading] = useState(false);
 
@@ -105,17 +104,22 @@ function AsgardeoAuthWrapper({ children }: { children: React.ReactNode }) {
   }, []);
 
   const isAsgardeoAvailable =
-    !!asgardeoAuth && process.env.NEXT_PUBLIC_ASGARDEO_CLIENT_ID;
+    !!process.env.NEXT_PUBLIC_ASGARDEO_CLIENT_ID &&
+    !!process.env.NEXT_PUBLIC_ASGARDEO_BASE_URL;
 
   const signIn = useCallback(
     async (email?: string, password?: string) => {
       if (authMode === "demo" && email && password) {
         await demoSignIn(email, password);
-      } else if (authMode === "asgardeo" && isAsgardeoAvailable) {
+      } else if (
+        authMode === "asgardeo" &&
+        isAsgardeoAvailable &&
+        asgardeoAuth
+      ) {
         await asgardeoAuth.signIn();
       } else if (authMode === "asgardeo" && !isAsgardeoAvailable) {
         throw new Error(
-          "Asgardeo is not properly configured. Please check your environment variables."
+          "Asgardeo is not configured. Please check your environment variables."
         );
       }
     },
@@ -125,7 +129,7 @@ function AsgardeoAuthWrapper({ children }: { children: React.ReactNode }) {
   const signOut = useCallback(async () => {
     if (authMode === "demo") {
       await demoSignOut();
-    } else if (authMode === "asgardeo" && isAsgardeoAvailable) {
+    } else if (authMode === "asgardeo" && isAsgardeoAvailable && asgardeoAuth) {
       await asgardeoAuth.signOut();
     }
   }, [authMode, demoSignOut, asgardeoAuth, isAsgardeoAvailable]);
@@ -134,7 +138,7 @@ function AsgardeoAuthWrapper({ children }: { children: React.ReactNode }) {
     if (
       authMode === "asgardeo" &&
       isAsgardeoAvailable &&
-      asgardeoAuth.state?.isAuthenticated
+      asgardeoAuth?.state?.isAuthenticated
     ) {
       try {
         return await asgardeoAuth.getAccessToken();
@@ -157,7 +161,7 @@ function AsgardeoAuthWrapper({ children }: { children: React.ReactNode }) {
       // Clear current auth state when switching
       if (authMode === "demo") {
         demoSignOut();
-      } else if (isAsgardeoAvailable && asgardeoAuth.state?.isAuthenticated) {
+      } else if (isAsgardeoAvailable && asgardeoAuth?.state?.isAuthenticated) {
         asgardeoAuth.signOut();
       }
       setAuthMode(mode);
@@ -223,14 +227,6 @@ export function DualAuthProvider({ children }: { children: React.ReactNode }) {
     ],
     enablePKCE: true,
     storage: "sessionStorage",
-    // Add these additional configurations
-    endpoints: {
-      authorizationEndpoint: `${process.env.NEXT_PUBLIC_ASGARDEO_BASE_URL}/oauth2/authorize`,
-      tokenEndpoint: `${process.env.NEXT_PUBLIC_ASGARDEO_BASE_URL}/oauth2/token`,
-      jwksUri: `${process.env.NEXT_PUBLIC_ASGARDEO_BASE_URL}/oauth2/jwks`,
-      logoutEndpoint: `${process.env.NEXT_PUBLIC_ASGARDEO_BASE_URL}/oidc/logout`,
-      revokeTokenEndpoint: `${process.env.NEXT_PUBLIC_ASGARDEO_BASE_URL}/oauth2/revoke`,
-    },
   };
 
   return (

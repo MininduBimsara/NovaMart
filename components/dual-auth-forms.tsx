@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "@/hooks/use-toast"
 import { AuthModeSelector } from "./auth-mode-selector"
 
+
 export function DualAuthForms() {
   const { state, signIn } = useDualAuth()
   const { authMode, isLoading } = state
