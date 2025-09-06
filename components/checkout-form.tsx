@@ -1,4 +1,4 @@
-// components/checkout-form.tsx - FIXED VERSION
+// components/checkout-form.tsx - FIXED VERSION WITH PROPER REDIRECT
 "use client";
 
 import { useState } from "react";
@@ -102,12 +102,17 @@ export function CheckoutForm() {
     setIsSubmitting(true);
 
     try {
-      console.log("[CheckoutForm] Starting checkout process for cart order");
-      console.log("[CheckoutForm] Auth state:", {
+      console.log("=== CHECKOUT FORM DEBUG ===");
+      console.log("Starting checkout process...");
+      console.log("Auth state:", {
         isAuthenticated: authContext.state.isAuthenticated,
         username: authContext.state.username,
         authMode: authContext.state.authMode,
       });
+
+      if (!authContext.state.isAuthenticated) {
+        throw new Error("User not authenticated");
+      }
 
       const authService = new AuthService(authContext);
       const apiClient = new ApiClient(
@@ -117,45 +122,51 @@ export function CheckoutForm() {
 
       // Create order data matching backend OrderDTO exactly
       const orderData: OrderDTO = {
-        // Don't set userId - let backend extract from JWT
         items: items.map((item) => ({
           productId: item.id,
           quantity: item.quantity,
-          unitPrice: item.price, // Use the exact price from cart
+          unitPrice: item.price,
         })),
-        totalAmount: finalTotal, // Include shipping and tax
+        totalAmount: finalTotal,
         status: "PENDING" as const,
       };
 
-      console.log(
-        "[CheckoutForm] Creating order with exact DTO format:",
-        orderData
-      );
+      console.log("Creating order with data:", orderData);
 
       // Create the order through the backend
       const response = await apiClient.post<any>("/api/orders", orderData);
+      console.log("Order created successfully:", response);
 
-      console.log("[CheckoutForm] Order created successfully:", response);
-
-      // Clear frontend cart
+      // Clear frontend cart immediately
+      console.log("Clearing cart...");
       clearCart();
 
-      // Clear backend cart if available
+      // Try to clear backend cart (non-critical)
       try {
         await apiClient.delete("/api/cart/clear");
-        console.log("[CheckoutForm] Backend cart cleared");
-      } catch (error) {
-        console.warn("[CheckoutForm] Failed to clear backend cart:", error);
-        // Don't throw error for this
+        console.log("Backend cart cleared");
+      } catch (cartError) {
+        console.warn("Failed to clear backend cart (non-critical):", cartError);
       }
 
+      // Show success message
       toast({
         title: "Order Placed Successfully!",
         description: `Your order has been confirmed and will be delivered to ${formData.deliveryLocation}.`,
       });
 
-      // Navigate to orders page
-      router.push(`/orders${response.id ? `?orderId=${response.id}` : ""}`);
+      console.log("Redirecting to orders page...");
+
+      // CRITICAL FIX: Use replace instead of push to prevent back navigation issues
+      // Also add a small delay to ensure state updates are complete
+      setTimeout(() => {
+        const redirectUrl = response?.id
+          ? `/orders?orderId=${response.id}`
+          : "/orders";
+
+        console.log("Redirecting to:", redirectUrl);
+        router.replace(redirectUrl);
+      }, 500);
     } catch (error) {
       console.error("Checkout error:", error);
 
@@ -164,16 +175,17 @@ export function CheckoutForm() {
 
       if (error instanceof Error) {
         if (error.message.includes("403")) {
-          errorMessage =
-            "Authentication failed. Please sign in again and try again.";
-          // Redirect to login if authentication failed
-          router.push("/");
+          errorMessage = "Authentication failed. Please sign in again.";
+          router.replace("/");
           return;
         } else if (error.message.includes("400")) {
-          errorMessage =
-            "Invalid order data. Please check your cart items and try again.";
+          errorMessage = "Invalid order data. Please check your cart items.";
         } else if (error.message.includes("500")) {
           errorMessage = "Server error. Please try again later.";
+        } else if (error.message.includes("not authenticated")) {
+          errorMessage = "Please sign in to complete your order.";
+          router.replace("/");
+          return;
         }
       }
 
@@ -189,7 +201,6 @@ export function CheckoutForm() {
 
   const updateFormData = (field: string, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
-    // Clear error when user starts interacting
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: "" }));
     }
@@ -329,6 +340,17 @@ export function CheckoutForm() {
             `Confirm Order - $${finalTotal.toFixed(2)}`
           )}
         </Button>
+
+        {isSubmitting && (
+          <div className="text-center">
+            <p className="text-sm text-muted-foreground">
+              Please wait while we process your order...
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Do not refresh or close this page
+            </p>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

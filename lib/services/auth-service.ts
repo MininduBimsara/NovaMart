@@ -1,4 +1,4 @@
-// lib/services/auth-service.ts - FIXED VERSION
+// lib/services/auth-service.ts - FIXED FOR ASGARDEO
 import type { AuthContextInterface } from "@asgardeo/auth-react";
 
 interface AuthState {
@@ -9,6 +9,7 @@ interface AuthState {
   displayName?: string;
   email?: string;
   authMode?: string;
+  accessToken?: string;
 }
 
 export class AuthService {
@@ -44,74 +45,93 @@ export class AuthService {
     try {
       const state = this.authContext.state;
 
-      // Debug logging
-      console.log("[AuthService] Getting access token...");
-      console.log("[AuthService] Auth state:", {
-        isAuthenticated: state.isAuthenticated,
-        authMode: state.authMode,
-        username: state.username,
-      });
+      console.log("=== AUTH SERVICE TOKEN RETRIEVAL ===");
+      console.log("Auth mode:", state.authMode);
+      console.log("Is authenticated:", state.isAuthenticated);
+      console.log("Username:", state.username);
 
-      // For Asgardeo mode
+      // PRIORITY 1: For Asgardeo mode, get OAuth2 token from the auth context
       if (
-        "getAccessToken" in this.authContext &&
-        state.authMode === "asgardeo"
+        state.authMode === "asgardeo" &&
+        "getAccessToken" in this.authContext
       ) {
-        console.log("[AuthService] Using Asgardeo getAccessToken");
-        const token = await this.authContext.getAccessToken();
-        console.log(
-          "[AuthService] Asgardeo token obtained:",
-          token ? "Yes" : "No"
-        );
-        return token;
-      }
-
-      // For demo mode or when Asgardeo token is not available
-      if (this.isAuthenticated()) {
-        console.log("[AuthService] Using demo/local token");
-
-        // Create a simple JWT-like token for demo mode
-        const userData = this.getUserProfile();
-        if (userData && userData.username) {
-          // Create a base64 encoded token with user info
-          const payload = {
-            sub: userData.username,
-            username: userData.username,
-            email: userData.email || userData.username,
-            name: userData.name || userData.username,
-            roles: ["USER"], // Default role
-            authorities: ["ROLE_USER"],
-            groups: ["USER"],
-            iat: Math.floor(Date.now() / 1000),
-            exp: Math.floor(Date.now() / 1000) + 24 * 60 * 60, // 24 hours
-            type: "DEMO_TOKEN",
-          };
-
-          // Simple token format (not secure, only for demo)
-          const token = btoa(
-            JSON.stringify({
-              header: { alg: "HS256", typ: "JWT" },
-              payload: payload,
-              signature: "demo-signature",
-            })
-          );
-
-          console.log("[AuthService] Demo token created");
-          return `demo.${token}.signature`;
+        console.log("Getting Asgardeo token...");
+        try {
+          const token = await this.authContext.getAccessToken();
+          if (token) {
+            console.log("✅ Asgardeo token obtained successfully");
+            console.log(
+              "Token type:",
+              token.startsWith("eyJ") ? "JWT" : "Other"
+            );
+            console.log("Token length:", token.length);
+            return token;
+          } else {
+            console.warn("❌ Asgardeo getAccessToken returned null/undefined");
+          }
+        } catch (asgardeoError) {
+          console.error("❌ Asgardeo getAccessToken failed:", asgardeoError);
         }
       }
 
-      console.log("[AuthService] No token available");
+      // PRIORITY 2: For demo mode, use stored token
+      if (state.authMode === "demo") {
+        console.log("Demo mode - checking for stored token...");
+
+        if (state.accessToken) {
+          console.log("✅ Demo token from auth state");
+          return state.accessToken;
+        }
+
+        const storedToken = localStorage.getItem("demoToken");
+        if (storedToken) {
+          console.log("✅ Demo token from localStorage");
+          return storedToken;
+        }
+      }
+
+      // PRIORITY 3: If user is authenticated but no token found, this is a problem
+      if (state.isAuthenticated) {
+        console.error(
+          "❌ User is authenticated but no access token available!"
+        );
+        console.log("Auth context details:", {
+          hasGetAccessToken: "getAccessToken" in this.authContext,
+          authMode: state.authMode,
+          hasUsername: !!state.username,
+          hasEmail: !!state.email,
+        });
+
+        // For Asgardeo, this might be a timing issue - try one more time
+        if (
+          state.authMode === "asgardeo" &&
+          "getAccessToken" in this.authContext
+        ) {
+          console.log("Retrying Asgardeo token retrieval...");
+          try {
+            // Wait a moment and try again
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+            const retryToken = await this.authContext.getAccessToken();
+            if (retryToken) {
+              console.log("✅ Asgardeo token obtained on retry");
+              return retryToken;
+            }
+          } catch (retryError) {
+            console.error("❌ Retry also failed:", retryError);
+          }
+        }
+      }
+
+      console.log("❌ No access token available");
       return null;
     } catch (error) {
-      console.error("Failed to get access token:", error);
+      console.error("❌ Failed to get access token:", error);
       return null;
     }
   }
 
   getUserProfile() {
     const state = this.authContext.state;
-
     return state.username || state.email
       ? {
           username: state.username || state.email,

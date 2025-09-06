@@ -1,3 +1,4 @@
+// lib/auth/dual-auth-provider.tsx - ENHANCED WITH BETTER ERROR HANDLING
 "use client";
 
 import type React from "react";
@@ -30,6 +31,7 @@ interface DualAuthState {
   displayName?: string;
   email?: string;
   authMode: AuthMode;
+  accessToken?: string;
 }
 
 interface DualAuthContextType {
@@ -42,47 +44,48 @@ interface DualAuthContextType {
 
 const DualAuthContext = createContext<DualAuthContextType | null>(null);
 
-// Demo users for testing
-const DEMO_USERS = [
-  {
-    id: "1",
-    email: "demo@example.com",
-    password: "demo123",
-    name: "Demo User",
-    displayName: "Demo User",
-  },
-  {
-    id: "2",
-    email: "admin@example.com",
-    password: "admin123",
-    name: "Admin User",
-    displayName: "Admin User",
-  },
-];
-
 function AsgardeoAuthWrapper({ children }: { children: React.ReactNode }) {
   const asgardeoAuth = useAsgardeoAuth();
   const router = useRouter();
-  const [authMode, setAuthMode] = useState<AuthMode>("demo"); // Default to demo
+  const [authMode, setAuthMode] = useState<AuthMode>("demo");
   const [demoUser, setDemoUser] = useState<DemoUser | null>(null);
   const [demoLoading, setDemoLoading] = useState(false);
   const [hasRedirected, setHasRedirected] = useState(false);
+  const [demoToken, setDemoToken] = useState<string | null>(null);
 
-  // Check for stored demo user on mount
+  // Check for stored data on mount
   useEffect(() => {
     const storedUser = localStorage.getItem("demoUser");
     const storedAuthMode = localStorage.getItem("authMode") as AuthMode;
+    const storedDemoToken = localStorage.getItem("demoToken");
+
+    console.log("=== INITIALIZING AUTH STATE ===");
+    console.log("Stored auth mode:", storedAuthMode);
+    console.log("Stored user:", !!storedUser);
+    console.log("Stored token:", !!storedDemoToken);
 
     if (storedAuthMode) {
       setAuthMode(storedAuthMode);
     }
 
     if (storedUser && (storedAuthMode === "demo" || authMode === "demo")) {
-      setDemoUser(JSON.parse(storedUser));
+      try {
+        const user = JSON.parse(storedUser);
+        setDemoUser(user);
+        console.log("Restored demo user:", user.email);
+      } catch (error) {
+        console.error("Error parsing stored user:", error);
+        localStorage.removeItem("demoUser");
+      }
+    }
+
+    if (storedDemoToken) {
+      setDemoToken(storedDemoToken);
+      console.log("Restored demo token");
     }
   }, [authMode]);
 
-  // Handle Asgardeo authentication state changes and redirect
+  // Handle Asgardeo authentication state changes
   useEffect(() => {
     if (
       authMode === "asgardeo" &&
@@ -90,9 +93,7 @@ function AsgardeoAuthWrapper({ children }: { children: React.ReactNode }) {
       !asgardeoAuth?.state?.isLoading &&
       !hasRedirected
     ) {
-      console.log(
-        "[DualAuth] Asgardeo authentication successful, redirecting to products"
-      );
+      console.log("[DualAuth] Asgardeo authentication successful");
       setHasRedirected(true);
       router.push("/products");
     }
@@ -104,47 +105,79 @@ function AsgardeoAuthWrapper({ children }: { children: React.ReactNode }) {
     router,
   ]);
 
-  // Reset redirect flag when auth state changes
-  useEffect(() => {
-    if (!asgardeoAuth?.state?.isAuthenticated) {
-      setHasRedirected(false);
-    }
-  }, [asgardeoAuth?.state?.isAuthenticated]);
-
   const demoSignIn = useCallback(
     async (email: string, password: string) => {
       setDemoLoading(true);
+      console.log("=== DEMO SIGN IN ===");
+      console.log("Attempting login for:", email);
 
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      try {
+        const apiUrl =
+          process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
+        console.log("API URL:", apiUrl);
 
-      const user = DEMO_USERS.find(
-        (u) => u.email === email && u.password === password
-      );
-      if (!user) {
+        const response = await fetch(`${apiUrl}/api/auth/login`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            username: email,
+            password: password,
+          }),
+        });
+
+        console.log("Login response status:", response.status);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error("Login failed:", errorText);
+          throw new Error(`Login failed: ${response.status}`);
+        }
+
+        const loginData = await response.json();
+        console.log("Login successful:", {
+          username: loginData.username,
+          hasToken: !!loginData.token,
+          tokenType: loginData.tokenType,
+        });
+
+        // Store demo user and token
+        const demoUser = {
+          id: loginData.username || email,
+          email: loginData.email || email,
+          name: loginData.name || "Demo User",
+          displayName: loginData.name || "Demo User",
+        };
+
+        setDemoUser(demoUser);
+        setDemoToken(loginData.token);
+
+        // Persist to localStorage
+        localStorage.setItem("demoUser", JSON.stringify(demoUser));
+        localStorage.setItem("demoToken", loginData.token);
+        localStorage.setItem("authMode", "demo");
+
+        console.log("Demo login completed successfully");
+
         setDemoLoading(false);
-        throw new Error("Invalid credentials");
+        router.push("/products");
+      } catch (error) {
+        setDemoLoading(false);
+        console.error("[DualAuth] Demo login failed:", error);
+        throw new Error("Invalid credentials or server error");
       }
-
-      const demoUser = {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        displayName: user.displayName,
-      };
-      setDemoUser(demoUser);
-      localStorage.setItem("demoUser", JSON.stringify(demoUser));
-      setDemoLoading(false);
-
-      // Redirect after demo login
-      router.push("/products");
     },
     [router]
   );
 
   const demoSignOut = useCallback(async () => {
+    console.log("=== DEMO SIGN OUT ===");
     setDemoUser(null);
+    setDemoToken(null);
     localStorage.removeItem("demoUser");
+    localStorage.removeItem("demoToken");
+    localStorage.removeItem("authMode");
     router.push("/");
   }, [router]);
 
@@ -192,32 +225,46 @@ function AsgardeoAuthWrapper({ children }: { children: React.ReactNode }) {
       }
     } catch (error) {
       console.error("[DualAuth] Sign out failed:", error);
-      // Still redirect to home even if signOut fails
       router.push("/");
     }
   }, [authMode, demoSignOut, asgardeoAuth, isAsgardeoAvailable, router]);
 
   const getAccessToken = useCallback(async (): Promise<string | null> => {
+    console.log("[DualAuth] Getting access token for mode:", authMode);
+
     if (
       authMode === "asgardeo" &&
       isAsgardeoAvailable &&
       asgardeoAuth?.state?.isAuthenticated
     ) {
       try {
-        return await asgardeoAuth.getAccessToken();
+        const token = await asgardeoAuth.getAccessToken();
+        console.log("[DualAuth] Asgardeo token obtained:", !!token);
+        return token;
       } catch (error) {
-        console.error("Failed to get Asgardeo access token:", error);
+        console.error("[DualAuth] Failed to get Asgardeo access token:", error);
         return null;
       }
     }
 
-    // For demo mode, return a mock token if authenticated
+    // For demo mode, return stored token
     if (authMode === "demo" && demoUser) {
-      return `demo-token-${demoUser.id}-${Date.now()}`;
+      if (demoToken) {
+        console.log("[DualAuth] Demo token from state:", !!demoToken);
+        return demoToken;
+      }
+
+      const storedToken = localStorage.getItem("demoToken");
+      if (storedToken) {
+        console.log("[DualAuth] Demo token from storage:", !!storedToken);
+        setDemoToken(storedToken); // Update state
+        return storedToken;
+      }
     }
 
+    console.log("[DualAuth] No token available");
     return null;
-  }, [authMode, asgardeoAuth, isAsgardeoAvailable, demoUser]);
+  }, [authMode, asgardeoAuth, isAsgardeoAvailable, demoUser, demoToken]);
 
   const switchAuthMode = useCallback(
     async (mode: AuthMode) => {
@@ -226,7 +273,9 @@ function AsgardeoAuthWrapper({ children }: { children: React.ReactNode }) {
       // Clear current auth state when switching
       if (authMode === "demo") {
         setDemoUser(null);
+        setDemoToken(null);
         localStorage.removeItem("demoUser");
+        localStorage.removeItem("demoToken");
       } else if (isAsgardeoAvailable && asgardeoAuth?.state?.isAuthenticated) {
         try {
           await asgardeoAuth.signOut();
@@ -247,7 +296,7 @@ function AsgardeoAuthWrapper({ children }: { children: React.ReactNode }) {
       authMode,
       isAuthenticated:
         authMode === "demo"
-          ? !!demoUser
+          ? !!demoUser && !!demoToken
           : !!(isAsgardeoAvailable && asgardeoAuth?.state?.isAuthenticated),
       isLoading:
         authMode === "demo"
@@ -266,8 +315,16 @@ function AsgardeoAuthWrapper({ children }: { children: React.ReactNode }) {
         authMode === "asgardeo" && isAsgardeoAvailable
           ? asgardeoAuth?.state?.email
           : demoUser?.email,
+      accessToken: authMode === "demo" ? demoToken || undefined : undefined,
     }),
-    [authMode, demoUser, demoLoading, asgardeoAuth, isAsgardeoAvailable]
+    [
+      authMode,
+      demoUser,
+      demoLoading,
+      asgardeoAuth,
+      isAsgardeoAvailable,
+      demoToken,
+    ]
   );
 
   const contextValue = useMemo(
@@ -321,7 +378,6 @@ export function useDualAuth() {
   return context;
 }
 
-// Compatibility hook for existing components
 export function useAuthContext() {
   return useDualAuth();
 }

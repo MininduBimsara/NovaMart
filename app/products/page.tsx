@@ -1,4 +1,4 @@
-// app/products/page.tsx
+// app/products/page.tsx - WITH DEBUG PANEL
 "use client";
 
 import { useState, useEffect } from "react";
@@ -11,6 +11,7 @@ import { ProductsService } from "@/lib/services/products-service";
 import { ApiClient } from "@/lib/services/api-client";
 import { AuthService } from "@/lib/services/auth-service";
 import { useToast } from "@/hooks/use-toast";
+import { AsgardeoDebug } from "@/components/asgardeo-debug";
 import type {
   Product,
   ProductFilters as ProductFiltersType,
@@ -134,6 +135,13 @@ function ProductsContent() {
           Discover our collection of products from the backend
         </p>
       </div>
+
+      {/* Debug Panel for Asgardeo users */}
+      {authContext.state.authMode === "asgardeo" && (
+        <div className="mb-6">
+          <AsgardeoDebug />
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         <div className="lg:col-span-1">

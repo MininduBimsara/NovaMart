@@ -116,12 +116,28 @@ export function PurchaseForm({ onSuccess }: PurchaseFormProps) {
     setIsSubmitting(true);
 
     try {
-      console.log("[PurchaseForm] Starting purchase process");
-      console.log("[PurchaseForm] Auth state:", {
+      console.log("=== PURCHASE FORM DEBUG ===");
+      console.log("Starting purchase process...");
+      console.log("Auth state:", {
         isAuthenticated: authContext.state.isAuthenticated,
         username: authContext.state.username,
         authMode: authContext.state.authMode,
       });
+
+      if (!authContext.state.isAuthenticated) {
+        throw new Error("User not authenticated");
+      }
+
+      // CRITICAL: Verify we have username before proceeding
+      const username = authContext.state.username || authContext.state.email;
+      if (!username) {
+        console.error("No username available in auth state");
+        throw new Error(
+          "Unable to identify user. Please try signing in again."
+        );
+      }
+
+      console.log("Using username for purchase:", username);
 
       const authService = new AuthService(authContext);
       const apiClient = new ApiClient(
@@ -141,7 +157,7 @@ export function PurchaseForm({ onSuccess }: PurchaseFormProps) {
 
       // Create purchase data matching backend PurchaseDTO exactly
       const purchaseData: PurchaseDTO = {
-        // Don't set username - let backend extract from JWT
+        username: username, // CRITICAL: Explicitly set username
         purchaseDate: formData.purchaseDate!.toISOString().split("T")[0], // Convert to YYYY-MM-DD
         deliveryTime: backendDeliveryTime,
         deliveryLocation: formData.deliveryLocation,
@@ -150,10 +166,7 @@ export function PurchaseForm({ onSuccess }: PurchaseFormProps) {
         message: formData.message || undefined,
       };
 
-      console.log(
-        "[PurchaseForm] Creating purchase with exact DTO format:",
-        purchaseData
-      );
+      console.log("Creating purchase with data:", purchaseData);
 
       // Create the purchase through the backend
       const response = await apiClient.post<any>(
@@ -161,21 +174,12 @@ export function PurchaseForm({ onSuccess }: PurchaseFormProps) {
         purchaseData
       );
 
-      console.log("[PurchaseForm] Purchase created successfully:", response);
+      console.log("Purchase created successfully:", response);
 
       toast({
         title: "Purchase Order Placed Successfully!",
         description: `Your purchase order has been confirmed and will be delivered to ${formData.deliveryLocation}.`,
       });
-
-      // Call success callback or navigate to purchases page
-      if (onSuccess && response.id) {
-        onSuccess(response.id);
-      } else {
-        router.push(
-          `/purchases${response.id ? `?purchaseId=${response.id}` : ""}`
-        );
-      }
 
       // Reset form
       setFormData({
@@ -187,6 +191,20 @@ export function PurchaseForm({ onSuccess }: PurchaseFormProps) {
         message: "",
       });
       setErrors({});
+
+      // Call success callback or navigate
+      if (onSuccess && response.id) {
+        onSuccess(response.id);
+      } else {
+        // Use replace for better navigation
+        setTimeout(() => {
+          const redirectUrl = response?.id
+            ? `/purchases?purchaseId=${response.id}`
+            : "/purchases";
+          console.log("Redirecting to:", redirectUrl);
+          router.replace(redirectUrl);
+        }, 500);
+      }
     } catch (error) {
       console.error("Purchase error:", error);
 
@@ -195,16 +213,21 @@ export function PurchaseForm({ onSuccess }: PurchaseFormProps) {
 
       if (error instanceof Error) {
         if (error.message.includes("403")) {
-          errorMessage =
-            "Authentication failed. Please sign in again and try again.";
-          // Redirect to login if authentication failed
-          router.push("/");
+          errorMessage = "Authentication failed. Please sign in again.";
+          router.replace("/");
           return;
         } else if (error.message.includes("400")) {
-          errorMessage =
-            "Invalid purchase data. Please check your inputs and try again.";
+          errorMessage = "Invalid purchase data. Please check your inputs.";
         } else if (error.message.includes("500")) {
           errorMessage = "Server error. Please try again later.";
+        } else if (error.message.includes("not authenticated")) {
+          errorMessage = "Please sign in to create a purchase order.";
+          router.replace("/");
+          return;
+        } else if (error.message.includes("identify user")) {
+          errorMessage = "Unable to identify user. Please sign in again.";
+          router.replace("/");
+          return;
         }
       }
 
@@ -220,7 +243,6 @@ export function PurchaseForm({ onSuccess }: PurchaseFormProps) {
 
   const updateFormData = (field: string, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
-    // Clear error when user starts typing
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: "" }));
     }
@@ -233,6 +255,11 @@ export function PurchaseForm({ onSuccess }: PurchaseFormProps) {
         <p className="text-sm text-muted-foreground">
           Create a new purchase order with delivery details
         </p>
+        {authContext.state.username && (
+          <p className="text-xs text-green-600">
+            ✓ Authenticated as: {authContext.state.username}
+          </p>
+        )}
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="space-y-2">
@@ -363,7 +390,7 @@ export function PurchaseForm({ onSuccess }: PurchaseFormProps) {
           onClick={handleSubmit}
           className="w-full"
           size="lg"
-          disabled={isSubmitting}
+          disabled={isSubmitting || !authContext.state.isAuthenticated}
         >
           {isSubmitting ? (
             <div className="flex items-center">
@@ -374,6 +401,17 @@ export function PurchaseForm({ onSuccess }: PurchaseFormProps) {
             "Create Purchase Order"
           )}
         </Button>
+
+        {isSubmitting && (
+          <div className="text-center">
+            <p className="text-sm text-muted-foreground">
+              Please wait while we process your purchase order...
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Do not refresh or close this page
+            </p>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

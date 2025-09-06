@@ -1,6 +1,7 @@
+// components/simple-auth-forms.tsx - ENHANCED VERSION
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useDualAuth } from "@/lib/auth/dual-auth-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +15,7 @@ import {
 } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Loader } from "@/components/ui/loader";
+import { Badge } from "@/components/ui/badge";
 
 export function SimpleAuthForms() {
   const { state, signIn, switchAuthMode } = useDualAuth();
@@ -57,7 +59,6 @@ export function SimpleAuthForms() {
     setIsSigningIn(true);
     try {
       await signIn();
-      // Don't show success toast here as Asgardeo will redirect
     } catch (error) {
       setIsSigningIn(false);
       toast({
@@ -73,12 +74,16 @@ export function SimpleAuthForms() {
     setPassword("demo123");
   };
 
+  const useAdminAccount = () => {
+    setEmail("admin@ecommerce.com");
+    setPassword("admin123");
+  };
+
   const isAsgardeoConfigured = !!(
     process.env.NEXT_PUBLIC_ASGARDEO_CLIENT_ID &&
     process.env.NEXT_PUBLIC_ASGARDEO_BASE_URL
   );
 
-  // Show loading if we're in the middle of authentication
   if (isLoading || isSigningIn) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
@@ -102,14 +107,17 @@ export function SimpleAuthForms() {
             Welcome to E-Commerce App
           </h2>
           <p className="mt-2 text-sm text-gray-600">
-            Sign in to access your account
+            Choose your authentication method and sign in
           </p>
         </div>
 
-        {/* Auth Mode Selector */}
+        {/* Authentication Mode Selector */}
         <Card>
           <CardHeader>
             <CardTitle className="text-center">Authentication Method</CardTitle>
+            <CardDescription className="text-center">
+              Select how you want to authenticate
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <Button
@@ -118,7 +126,12 @@ export function SimpleAuthForms() {
               onClick={() => switchAuthMode("demo")}
               disabled={isSigningIn}
             >
-              Demo Mode
+              <div className="flex items-center justify-between w-full">
+                <span>Local Authentication</span>
+                <Badge variant="secondary" className="text-xs">
+                  Username/Password
+                </Badge>
+              </div>
             </Button>
             <Button
               variant={authMode === "asgardeo" ? "default" : "outline"}
@@ -126,17 +139,26 @@ export function SimpleAuthForms() {
               onClick={() => switchAuthMode("asgardeo")}
               disabled={!isAsgardeoConfigured || isSigningIn}
             >
-              Asgardeo OIDC {!isAsgardeoConfigured && "(Not Configured)"}
+              <div className="flex items-center justify-between w-full">
+                <span>Asgardeo SSO</span>
+                <Badge
+                  variant={isAsgardeoConfigured ? "default" : "destructive"}
+                  className="text-xs"
+                >
+                  {isAsgardeoConfigured ? "OAuth2" : "Not Configured"}
+                </Badge>
+              </div>
             </Button>
           </CardContent>
         </Card>
 
+        {/* Authentication Forms */}
         {authMode === "demo" ? (
           <Card>
             <CardHeader>
-              <CardTitle>Demo Authentication</CardTitle>
+              <CardTitle>Local Authentication</CardTitle>
               <CardDescription>
-                Use demo credentials to preview the application
+                Sign in with your email and password or use demo accounts
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -149,6 +171,7 @@ export function SimpleAuthForms() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     disabled={isSigningIn}
+                    placeholder="Enter your email"
                     required
                   />
                 </div>
@@ -160,6 +183,7 @@ export function SimpleAuthForms() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     disabled={isSigningIn}
+                    placeholder="Enter your password"
                     required
                   />
                 </div>
@@ -173,24 +197,41 @@ export function SimpleAuthForms() {
                     "Sign In"
                   )}
                 </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full"
-                  onClick={useDemoAccount}
-                  disabled={isSigningIn}
-                >
-                  Use Demo Account
-                </Button>
               </form>
+
+              <div className="mt-4 space-y-2">
+                <div className="text-sm text-center text-gray-600">
+                  Or use demo accounts:
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={useDemoAccount}
+                    disabled={isSigningIn}
+                  >
+                    Demo User
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={useAdminAccount}
+                    disabled={isSigningIn}
+                  >
+                    Admin User
+                  </Button>
+                </div>
+              </div>
 
               <div className="mt-4 p-3 bg-blue-50 rounded-lg">
                 <p className="text-sm text-blue-800">
                   <strong>Demo Accounts:</strong>
                   <br />
-                  demo@example.com / demo123
+                  <strong>User:</strong> demo@example.com / demo123
                   <br />
-                  admin@example.com / admin123
+                  <strong>Admin:</strong> admin@ecommerce.com / admin123
                 </p>
               </div>
             </CardContent>
@@ -198,41 +239,88 @@ export function SimpleAuthForms() {
         ) : (
           <Card>
             <CardHeader>
-              <CardTitle>Asgardeo OIDC</CardTitle>
+              <CardTitle>Asgardeo SSO Authentication</CardTitle>
               <CardDescription>
-                Sign in with your Asgardeo account
+                Sign in with your Asgardeo account using OAuth2
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button
-                onClick={handleAsgardeoSignIn}
-                className="w-full"
-                disabled={isSigningIn}
-              >
-                {isSigningIn ? (
-                  <>
-                    <Loader />
-                    <span className="ml-2">Redirecting...</span>
-                  </>
-                ) : (
-                  "Sign in with Asgardeo"
-                )}
-              </Button>
+              {isAsgardeoConfigured ? (
+                <Button
+                  onClick={handleAsgardeoSignIn}
+                  className="w-full"
+                  disabled={isSigningIn}
+                >
+                  {isSigningIn ? (
+                    <>
+                      <Loader />
+                      <span className="ml-2">Redirecting to Asgardeo...</span>
+                    </>
+                  ) : (
+                    "Sign in with Asgardeo"
+                  )}
+                </Button>
+              ) : (
+                <div className="text-center">
+                  <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-200 mb-4">
+                    <p className="text-sm text-yellow-800">
+                      <strong>Asgardeo Not Configured</strong>
+                    </p>
+                    <p className="text-xs text-yellow-700 mt-2">
+                      Please set up your environment variables:
+                      <br />
+                      • NEXT_PUBLIC_ASGARDEO_CLIENT_ID
+                      <br />• NEXT_PUBLIC_ASGARDEO_BASE_URL
+                    </p>
+                  </div>
+                  <Button
+                    onClick={() => switchAuthMode("demo")}
+                    variant="outline"
+                    className="w-full"
+                  >
+                    Use Local Authentication Instead
+                  </Button>
+                </div>
+              )}
 
-              {!isAsgardeoConfigured && (
-                <div className="mt-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-                  <p className="text-sm text-yellow-800">
-                    <strong>Configuration Required:</strong> Please set up your
-                    environment variables:
+              {isAsgardeoConfigured && (
+                <div className="mt-4 p-3 bg-green-50 rounded-lg">
+                  <p className="text-sm text-green-800">
+                    <strong>Asgardeo Configuration:</strong> Ready
                     <br />
-                    • NEXT_PUBLIC_ASGARDEO_CLIENT_ID
-                    <br />• NEXT_PUBLIC_ASGARDEO_BASE_URL
+                    You will be redirected to Asgardeo for secure
+                    authentication.
                   </p>
                 </div>
               )}
             </CardContent>
           </Card>
         )}
+
+        {/* Debug Information */}
+        <Card className="border-dashed">
+          <CardHeader>
+            <CardTitle className="text-sm">Debug Information</CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs space-y-1">
+            <div>
+              Auth Mode: <Badge variant="outline">{authMode}</Badge>
+            </div>
+            <div>
+              Asgardeo:{" "}
+              <Badge variant={isAsgardeoConfigured ? "default" : "destructive"}>
+                {isAsgardeoConfigured ? "Configured" : "Not Configured"}
+              </Badge>
+            </div>
+            <div>
+              Backend API:{" "}
+              <code className="bg-gray-100 px-1 rounded">
+                {process.env.NEXT_PUBLIC_API_BASE_URL ||
+                  "http://localhost:8080"}
+              </code>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
