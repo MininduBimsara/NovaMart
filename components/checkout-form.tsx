@@ -1,4 +1,4 @@
-// components/checkout-form.tsx
+// components/checkout-form.tsx - FIXED VERSION
 "use client";
 
 import { useState } from "react";
@@ -20,12 +20,24 @@ import {
   sriLankaDistricts,
   deliveryTimes,
 } from "@/lib/data/sri-lanka-districts";
-import { OrdersService } from "@/lib/services/orders-service";
-import { CartService } from "@/lib/services/cart-service";
 import { ApiClient } from "@/lib/services/api-client";
 import { AuthService } from "@/lib/services/auth-service";
 import { useAuthContext } from "@/lib/auth/dual-auth-provider";
 import { Loader } from "@/components/ui/loader";
+
+// Backend DTO format that matches Spring Boot OrderDTO
+interface OrderDTO {
+  userId?: string; // Will be set by backend from JWT
+  items: OrderItemDTO[];
+  totalAmount: number;
+  status?: "PENDING" | "CONFIRMED" | "SHIPPED" | "DELIVERED" | "CANCELED";
+}
+
+interface OrderItemDTO {
+  productId: string;
+  quantity: number;
+  unitPrice: number;
+}
 
 export function CheckoutForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -91,65 +103,83 @@ export function CheckoutForm() {
 
     try {
       console.log("[CheckoutForm] Starting checkout process for cart order");
+      console.log("[CheckoutForm] Auth state:", {
+        isAuthenticated: authContext.state.isAuthenticated,
+        username: authContext.state.username,
+        authMode: authContext.state.authMode,
+      });
 
       const authService = new AuthService(authContext);
       const apiClient = new ApiClient(
         process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080",
         authService
       );
-      const ordersService = new OrdersService(apiClient);
 
-      // Create order data for cart items
-      const orderData = {
+      // Create order data matching backend OrderDTO exactly
+      const orderData: OrderDTO = {
+        // Don't set userId - let backend extract from JWT
         items: items.map((item) => ({
-          id: item.id,
-          name: item.name,
-          price: item.price,
+          productId: item.id,
           quantity: item.quantity,
+          unitPrice: item.price, // Use the exact price from cart
         })),
-        totalAmount: finalTotal,
-        deliveryDate: formData.deliveryDate!.toISOString(),
-        deliveryTime: formData.deliveryTime,
-        deliveryLocation: formData.deliveryLocation,
+        totalAmount: finalTotal, // Include shipping and tax
+        status: "PENDING" as const,
       };
 
-      console.log("[CheckoutForm] Creating order with data:", orderData);
+      console.log(
+        "[CheckoutForm] Creating order with exact DTO format:",
+        orderData
+      );
 
       // Create the order through the backend
-      const createdOrder = await ordersService.createOrder(orderData);
+      const response = await apiClient.post<any>("/api/orders", orderData);
 
-      console.log(
-        "[CheckoutForm] Order created successfully:",
-        createdOrder.id
-      );
+      console.log("[CheckoutForm] Order created successfully:", response);
 
       // Clear frontend cart
       clearCart();
 
-      // Clear backend cart
+      // Clear backend cart if available
       try {
-        const cartService = new CartService(apiClient);
-        await cartService.clearCart();
+        await apiClient.delete("/api/cart/clear");
         console.log("[CheckoutForm] Backend cart cleared");
       } catch (error) {
         console.warn("[CheckoutForm] Failed to clear backend cart:", error);
+        // Don't throw error for this
       }
 
       toast({
         title: "Order Placed Successfully!",
-        description: `Your order ${createdOrder.id} has been confirmed.`,
+        description: `Your order has been confirmed and will be delivered to ${formData.deliveryLocation}.`,
       });
 
-      router.push(`/orders?orderId=${createdOrder.id}`);
+      // Navigate to orders page
+      router.push(`/orders${response.id ? `?orderId=${response.id}` : ""}`);
     } catch (error) {
       console.error("Checkout error:", error);
 
+      let errorMessage =
+        "There was an error processing your order. Please try again.";
+
+      if (error instanceof Error) {
+        if (error.message.includes("403")) {
+          errorMessage =
+            "Authentication failed. Please sign in again and try again.";
+          // Redirect to login if authentication failed
+          router.push("/");
+          return;
+        } else if (error.message.includes("400")) {
+          errorMessage =
+            "Invalid order data. Please check your cart items and try again.";
+        } else if (error.message.includes("500")) {
+          errorMessage = "Server error. Please try again later.";
+        }
+      }
+
       toast({
         title: "Checkout Failed",
-        description:
-          error instanceof Error
-            ? error.message
-            : "There was an error processing your order. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {

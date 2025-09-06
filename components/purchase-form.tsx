@@ -1,4 +1,4 @@
-// components/purchase-form.tsx
+// components/purchase-form.tsx - FIXED VERSION
 "use client";
 
 import { useState } from "react";
@@ -17,7 +17,6 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { DatePicker } from "@/components/date-picker";
 import { Loader } from "@/components/ui/loader";
-import { PurchaseService } from "@/lib/services/purchase-service";
 import { ApiClient } from "@/lib/services/api-client";
 import { AuthService } from "@/lib/services/auth-service";
 import { useAuthContext } from "@/lib/auth/dual-auth-provider";
@@ -38,6 +37,17 @@ const productOptions = [
   { value: "POWER_BANK", label: "Power Bank 20000mAh" },
   { value: "WIRELESS_CHARGER", label: "Wireless Charger Pad" },
 ];
+
+// Backend DTO format that matches Spring Boot PurchaseDTO
+interface PurchaseDTO {
+  username?: string; // Will be set by backend from JWT
+  purchaseDate: string; // LocalDate as ISO string (YYYY-MM-DD)
+  deliveryTime: string; // "10AM", "11AM", "12PM"
+  deliveryLocation: string; // Sri Lankan district
+  productName: string; // From predefined enum
+  quantity: number;
+  message?: string;
+}
 
 interface PurchaseFormProps {
   onSuccess?: (purchaseId: string) => void;
@@ -107,46 +117,64 @@ export function PurchaseForm({ onSuccess }: PurchaseFormProps) {
 
     try {
       console.log("[PurchaseForm] Starting purchase process");
+      console.log("[PurchaseForm] Auth state:", {
+        isAuthenticated: authContext.state.isAuthenticated,
+        username: authContext.state.username,
+        authMode: authContext.state.authMode,
+      });
 
       const authService = new AuthService(authContext);
       const apiClient = new ApiClient(
         process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080",
         authService
       );
-      const purchaseService = new PurchaseService(apiClient);
 
-      // Create purchase data
-      const purchaseData = {
-        purchaseDate: formData.purchaseDate!,
-        deliveryTime: formData.deliveryTime,
+      // Convert frontend delivery time format to backend format
+      let backendDeliveryTime = formData.deliveryTime;
+      if (formData.deliveryTime === "10:00") {
+        backendDeliveryTime = "10AM";
+      } else if (formData.deliveryTime === "11:00") {
+        backendDeliveryTime = "11AM";
+      } else if (formData.deliveryTime === "12:00") {
+        backendDeliveryTime = "12PM";
+      }
+
+      // Create purchase data matching backend PurchaseDTO exactly
+      const purchaseData: PurchaseDTO = {
+        // Don't set username - let backend extract from JWT
+        purchaseDate: formData.purchaseDate!.toISOString().split("T")[0], // Convert to YYYY-MM-DD
+        deliveryTime: backendDeliveryTime,
         deliveryLocation: formData.deliveryLocation,
         productName: formData.productName,
         quantity: formData.quantity,
         message: formData.message || undefined,
       };
 
-      console.log("[PurchaseForm] Creating purchase with data:", purchaseData);
-
-      // Create the purchase through the backend
-      const createdPurchase = await purchaseService.createPurchase(
+      console.log(
+        "[PurchaseForm] Creating purchase with exact DTO format:",
         purchaseData
       );
 
-      console.log(
-        "[PurchaseForm] Purchase created successfully:",
-        createdPurchase.id
+      // Create the purchase through the backend
+      const response = await apiClient.post<any>(
+        "/api/purchases",
+        purchaseData
       );
+
+      console.log("[PurchaseForm] Purchase created successfully:", response);
 
       toast({
         title: "Purchase Order Placed Successfully!",
-        description: `Your purchase order ${createdPurchase.id} has been confirmed.`,
+        description: `Your purchase order has been confirmed and will be delivered to ${formData.deliveryLocation}.`,
       });
 
       // Call success callback or navigate to purchases page
-      if (onSuccess) {
-        onSuccess(createdPurchase.id);
+      if (onSuccess && response.id) {
+        onSuccess(response.id);
       } else {
-        router.push(`/purchases?purchaseId=${createdPurchase.id}`);
+        router.push(
+          `/purchases${response.id ? `?purchaseId=${response.id}` : ""}`
+        );
       }
 
       // Reset form
@@ -158,15 +186,31 @@ export function PurchaseForm({ onSuccess }: PurchaseFormProps) {
         quantity: 1,
         message: "",
       });
+      setErrors({});
     } catch (error) {
       console.error("Purchase error:", error);
 
+      let errorMessage =
+        "There was an error processing your purchase. Please try again.";
+
+      if (error instanceof Error) {
+        if (error.message.includes("403")) {
+          errorMessage =
+            "Authentication failed. Please sign in again and try again.";
+          // Redirect to login if authentication failed
+          router.push("/");
+          return;
+        } else if (error.message.includes("400")) {
+          errorMessage =
+            "Invalid purchase data. Please check your inputs and try again.";
+        } else if (error.message.includes("500")) {
+          errorMessage = "Server error. Please try again later.";
+        }
+      }
+
       toast({
         title: "Purchase Failed",
-        description:
-          error instanceof Error
-            ? error.message
-            : "There was an error processing your purchase. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -186,6 +230,9 @@ export function PurchaseForm({ onSuccess }: PurchaseFormProps) {
     <Card>
       <CardHeader>
         <CardTitle>Create Purchase Order</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Create a new purchase order with delivery details
+        </p>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="space-y-2">
