@@ -1,32 +1,40 @@
-"use client"
+// components/mobile-nav.tsx
+"use client";
 
-import { useState } from "react"
-import Link from "next/link"
-import { useAuthContext } from "@/lib/auth/dual-auth-provider"
-import { Button } from "@/components/ui/button"
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { Badge } from "@/components/ui/badge"
-import { Menu, ShoppingCart, User, Package, LogOut } from "lucide-react"
-import { useCartStore } from "@/lib/stores/cart-store"
+import { useState } from "react";
+import Link from "next/link";
+import { useAuthContext } from "@/lib/auth/dual-auth-provider";
+import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Badge } from "@/components/ui/badge";
+import {
+  Menu,
+  ShoppingCart,
+  User,
+  Package,
+  LogOut,
+  FileText,
+} from "lucide-react";
+import { useCartStore } from "@/lib/stores/cart-store";
 
 export function MobileNav() {
-  const [open, setOpen] = useState(false)
-  const { state, signOut } = useAuthContext()
-  const { items } = useCartStore()
+  const [open, setOpen] = useState(false);
+  const { state, signOut } = useAuthContext();
+  const { items } = useCartStore();
 
-  const cartItemCount = items.reduce((total, item) => total + item.quantity, 0)
+  const cartItemCount = items.reduce((total, item) => total + item.quantity, 0);
 
   const handleLogout = async () => {
     try {
-      await signOut()
-      setOpen(false)
+      await signOut();
+      setOpen(false);
     } catch (error) {
-      console.error("Logout failed:", error)
+      console.error("Logout failed:", error);
     }
-  }
+  };
 
   if (!state.isAuthenticated) {
-    return null
+    return null;
   }
 
   return (
@@ -46,10 +54,16 @@ export function MobileNav() {
             <span>Products</span>
           </Link>
 
-          <Link href="/cart" className="flex items-center space-x-2 text-lg font-medium" onClick={() => setOpen(false)}>
+          <Link
+            href="/cart"
+            className="flex items-center space-x-2 text-lg font-medium"
+            onClick={() => setOpen(false)}
+          >
             <ShoppingCart className="h-5 w-5" />
             <span>Cart</span>
-            {cartItemCount > 0 && <Badge variant="secondary">{cartItemCount}</Badge>}
+            {cartItemCount > 0 && (
+              <Badge variant="secondary">{cartItemCount}</Badge>
+            )}
           </Link>
 
           <Link
@@ -59,6 +73,15 @@ export function MobileNav() {
           >
             <Package className="h-5 w-5" />
             <span>Orders</span>
+          </Link>
+
+          <Link
+            href="/purchases"
+            className="flex items-center space-x-2 text-lg font-medium"
+            onClick={() => setOpen(false)}
+          >
+            <FileText className="h-5 w-5" />
+            <span>Purchases</span>
           </Link>
 
           <Link
@@ -81,5 +104,5 @@ export function MobileNav() {
         </div>
       </SheetContent>
     </Sheet>
-  )
+  );
 }
