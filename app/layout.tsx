@@ -23,22 +23,23 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`}>
       <head>
         <link
           href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;500;600&display=swap"
           rel="stylesheet"
         />
-        <style>{`
-html {
-  font-family: ${GeistSans.style.fontFamily};
-  --font-sans: ${GeistSans.variable};
-  --font-mono: ${GeistMono.variable};
-  --font-serif: 'Playfair Display', serif;
-}
-        `}</style>
+        <style
+          dangerouslySetInnerHTML={{
+            __html: `
+            :root {
+              --font-serif: 'Playfair Display', serif;
+            }
+          `,
+          }}
+        />
       </head>
-      <body>
+      <body className={GeistSans.className}>
         <ErrorBoundary>
           <DualAuthProvider>
             <CartSyncProvider>
