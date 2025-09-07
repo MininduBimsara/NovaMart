@@ -1,4 +1,4 @@
-// lib/auth/dual-auth-provider.tsx - ENHANCED WITH BETTER ERROR HANDLING
+// lib/auth/dual-auth-provider.tsx - ENHANCED FOR ASGARDEO
 "use client";
 
 import type React from "react";
@@ -59,7 +59,7 @@ function AsgardeoAuthWrapper({ children }: { children: React.ReactNode }) {
     const storedAuthMode = localStorage.getItem("authMode") as AuthMode;
     const storedDemoToken = localStorage.getItem("demoToken");
 
-    console.log("=== INITIALIZING AUTH STATE ===");
+    console.log("=== INITIALIZING DUAL AUTH ===");
     console.log("Stored auth mode:", storedAuthMode);
     console.log("Stored user:", !!storedUser);
     console.log("Stored token:", !!storedDemoToken);
@@ -85,21 +85,29 @@ function AsgardeoAuthWrapper({ children }: { children: React.ReactNode }) {
     }
   }, [authMode]);
 
-  // Handle Asgardeo authentication state changes
+  // Enhanced Asgardeo authentication handling
   useEffect(() => {
-    if (
-      authMode === "asgardeo" &&
-      asgardeoAuth?.state?.isAuthenticated &&
-      !asgardeoAuth?.state?.isLoading &&
-      !hasRedirected
-    ) {
-      console.log("[DualAuth] Asgardeo authentication successful");
-      setHasRedirected(true);
-      router.push("/products");
+    if (authMode === "asgardeo" && asgardeoAuth?.state) {
+      console.log("=== ASGARDEO AUTH STATE CHANGE ===");
+      console.log("Authenticated:", asgardeoAuth.state.isAuthenticated);
+      console.log("Loading:", asgardeoAuth.state.isLoading);
+      console.log("Username:", asgardeoAuth.state.username);
+      console.log("Email:", asgardeoAuth.state.email);
+
+      if (
+        asgardeoAuth.state.isAuthenticated &&
+        !asgardeoAuth.state.isLoading &&
+        !hasRedirected
+      ) {
+        console.log("✅ Asgardeo authentication successful, redirecting...");
+        setHasRedirected(true);
+        router.push("/products");
+      }
     }
   }, [
     asgardeoAuth?.state?.isAuthenticated,
     asgardeoAuth?.state?.isLoading,
+    asgardeoAuth?.state?.username,
     authMode,
     hasRedirected,
     router,
@@ -136,13 +144,12 @@ function AsgardeoAuthWrapper({ children }: { children: React.ReactNode }) {
         }
 
         const loginData = await response.json();
-        console.log("Login successful:", {
+        console.log("✅ Demo login successful:", {
           username: loginData.username,
           hasToken: !!loginData.token,
           tokenType: loginData.tokenType,
         });
 
-        // Store demo user and token
         const demoUser = {
           id: loginData.username || email,
           email: loginData.email || email,
@@ -229,8 +236,15 @@ function AsgardeoAuthWrapper({ children }: { children: React.ReactNode }) {
     }
   }, [authMode, demoSignOut, asgardeoAuth, isAsgardeoAvailable, router]);
 
+  // CRITICAL: Enhanced getAccessToken for both auth modes
   const getAccessToken = useCallback(async (): Promise<string | null> => {
-    console.log("[DualAuth] Getting access token for mode:", authMode);
+    console.log("=== DUAL AUTH GET ACCESS TOKEN ===");
+    console.log("Auth mode:", authMode);
+    console.log("Asgardeo available:", isAsgardeoAvailable);
+    console.log(
+      "Asgardeo authenticated:",
+      asgardeoAuth?.state?.isAuthenticated
+    );
 
     if (
       authMode === "asgardeo" &&
@@ -238,11 +252,83 @@ function AsgardeoAuthWrapper({ children }: { children: React.ReactNode }) {
       asgardeoAuth?.state?.isAuthenticated
     ) {
       try {
+        console.log("🔄 Getting Asgardeo access token...");
         const token = await asgardeoAuth.getAccessToken();
-        console.log("[DualAuth] Asgardeo token obtained:", !!token);
-        return token;
+
+        if (token) {
+          console.log("✅ Asgardeo access token obtained");
+          console.log("Token length:", token.length);
+          console.log("Token starts with:", token.substring(0, 20) + "...");
+
+          // Additional validation for debugging
+          try {
+            const parts = token.split(".");
+            if (parts.length === 3) {
+              const header = JSON.parse(atob(parts[0]));
+              const payload = JSON.parse(atob(parts[1]));
+
+              console.log("🔍 Asgardeo token details:");
+              console.log("- Algorithm:", header.alg);
+              console.log("- Type:", header.typ);
+              console.log("- Issuer:", payload.iss);
+              console.log("- Audience:", payload.aud);
+              console.log("- Subject:", payload.sub);
+              console.log("- Scope:", payload.scope);
+              console.log("- Groups:", payload.groups);
+              console.log(
+                "- Expires:",
+                new Date(payload.exp * 1000).toISOString()
+              );
+
+              // Check expiration
+              const now = Math.floor(Date.now() / 1000);
+              if (payload.exp && payload.exp < now) {
+                console.warn("⚠️ Asgardeo token is expired!");
+                return null;
+              }
+            }
+          } catch (parseError) {
+            console.warn("Could not parse token for debugging:", parseError);
+          }
+
+          return token;
+        } else {
+          console.warn("❌ Asgardeo getAccessToken returned null");
+        }
       } catch (error) {
-        console.error("[DualAuth] Failed to get Asgardeo access token:", error);
+        console.error("❌ Failed to get Asgardeo access token:", error);
+
+        // Try alternative methods to get token
+        try {
+          console.log("🔄 Trying alternative token retrieval...");
+
+          // Check session storage for Asgardeo tokens
+          const sessionKeys = Object.keys(sessionStorage);
+          const authKey = sessionKeys.find(
+            (key) =>
+              key.includes("auth") ||
+              key.includes("token") ||
+              key.includes("asgardeo")
+          );
+
+          if (authKey) {
+            const sessionData = sessionStorage.getItem(authKey);
+            if (sessionData) {
+              try {
+                const authData = JSON.parse(sessionData);
+                if (authData.access_token) {
+                  console.log("✅ Found access token in session storage");
+                  return authData.access_token;
+                }
+              } catch (parseError) {
+                console.warn("Could not parse session auth data");
+              }
+            }
+          }
+        } catch (altError) {
+          console.warn("Alternative token retrieval failed:", altError);
+        }
+
         return null;
       }
     }
@@ -250,19 +336,19 @@ function AsgardeoAuthWrapper({ children }: { children: React.ReactNode }) {
     // For demo mode, return stored token
     if (authMode === "demo" && demoUser) {
       if (demoToken) {
-        console.log("[DualAuth] Demo token from state:", !!demoToken);
+        console.log("✅ Demo token from state");
         return demoToken;
       }
 
       const storedToken = localStorage.getItem("demoToken");
       if (storedToken) {
-        console.log("[DualAuth] Demo token from storage:", !!storedToken);
-        setDemoToken(storedToken); // Update state
+        console.log("✅ Demo token from storage");
+        setDemoToken(storedToken);
         return storedToken;
       }
     }
 
-    console.log("[DualAuth] No token available");
+    console.log("❌ No access token available");
     return null;
   }, [authMode, asgardeoAuth, isAsgardeoAvailable, demoUser, demoToken]);
 
@@ -305,7 +391,7 @@ function AsgardeoAuthWrapper({ children }: { children: React.ReactNode }) {
       user: authMode === "demo" ? demoUser : null,
       username:
         authMode === "asgardeo" && isAsgardeoAvailable
-          ? asgardeoAuth?.state?.username
+          ? asgardeoAuth?.state?.username || asgardeoAuth?.state?.email
           : demoUser?.email,
       displayName:
         authMode === "asgardeo" && isAsgardeoAvailable
